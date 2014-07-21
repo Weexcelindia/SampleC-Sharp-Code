@@ -1,0 +1,1356 @@
+using MspConnect.BusinessLogic;
+using MspConnect.Common;
+using MspConnect.Models;
+using MSPConnect.DomainObjects;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using MspConnect.Utilities;
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+using iTextSharp.text.html.simpleparser;
+using System.IO;
+using System.Globalization;
+using ThreeISpot.Common;
+namespace MspConnect.Controllers
+{
+    public class QBRController : Controller
+    {
+        MSPConnectEntities entity = new MSPConnectEntities();
+        // GET: /QBR/
+        public ActionResult QBR()
+        {
+            Session["MenuItem"] = "ServiceDesk";
+            ServiceModel model = new ServiceModel();
+            return View(model);
+        }
+        public ActionResult _LoadPartial(int? TabId, string CompanyId, int? ispdf, int Board = 0)
+        {
+            QBRManager _qbrMgr = new QBRManager();
+            Board = Convert.ToInt32(Session["board"]);
+            //entity.CommandTimeout = 500;
+            string _partialView = string.Empty;
+            int comId = Convert.ToInt32(CompanyId);
+            if (ispdf == 1)
+            {
+                comId = Convert.ToInt32(Session["comid"]);
+            }
+            else
+            {
+                Session["comid"] = CompanyId;
+            }
+
+            Session["ccid"] = CompanyId;
+
+            string DateBuilder = "";
+            string TicketsReceived = "";
+            string TicketsResolved = "";
+            string TicketsRecPenClo = "";
+            string ticketsBackLog = "";
+            int FrequencyId = Convert.ToInt32(Common.FrequencyType.Last15Days);
+            string[] Dates = MspDateTimeCls.GetRange((Common.FrequencyType)FrequencyId, DateTime.Now);
+            DateTime startDate = Convert.ToDateTime(Dates[0]);
+            DateTime endDate = Convert.ToDateTime(Dates[1]);
+            startDate = startDate.AddDays(1);
+            var DateArray = Enumerable.Range(0, 1 + endDate.Subtract(startDate).Days)
+                    .Select(offset => startDate.AddDays(offset).ToString("dd" + " " + "MMM")).ToArray();
+            var DateArray2 = Enumerable.Range(0, 1 + endDate.Subtract(startDate).Days)
+                    .Select(offset => startDate.AddDays(offset).ToShortDateString()).ToArray();
+            if (DateArray.Count() != 0)
+            {
+                DateBuilder = DateArray[0].ToString();
+                for (int i = 1; i < (DateArray.Count()); i++)
+                {
+                    DateBuilder = DateBuilder + "," + DateArray[i];
+                }
+            }
+            if (TabId == 1)
+            {
+                //List<USP_Service_TicketVolume_Result> TicketVolumeList = new List<USP_Service_TicketVolume_Result>();
+                //TicketVolumeList = entity.USP_Service_TicketVolume(Convert.ToInt32(comId), Board).ToList();
+                var outPut = _qbrMgr.USP_Service_TicketVolume(Convert.ToInt32(comId), Board);
+                var TicketVolumeList = (List<Dictionary<string, object>>)outPut.ResponseData;
+
+                int i = 1;
+                foreach (var value in TicketVolumeList)
+                {
+                    if (i == 1)
+                    {
+                        ticketsBackLog = value["Date15"] + "," + value["Date14"] + "," + value["Date13"] + "," + value["Date12"] + "," + value["Date11"] + "," + value["Date10"] + "," + value["Date9"] + "," + value["Date8"] + "," + value["Date7"] + "," + value["Date6"] + "," + value["Date5"] + "," + value["Date4"] + "," + value["Date3"] + "," + value["Date2"] + "," + value["Date1"];
+                        i++;
+                    }
+                    else if (i == 2)
+                    {
+                        TicketsReceived = value["Date15"] + "," + value["Date14"] + "," + value["Date13"] + "," + value["Date12"] + "," + value["Date11"] + "," + value["Date10"] + "," + value["Date9"] + "," + value["Date8"] + "," + value["Date7"] + "," + value["Date6"] + "," + value["Date5"] + "," + value["Date4"] + "," + value["Date3"] + "," + value["Date2"] + "," + value["Date1"];
+                        i++;
+                    }
+                    else if (i == 3)
+                    {
+                        TicketsResolved = value["Date15"] + "," + value["Date14"] + "," + value["Date13"] + "," + value["Date12"] + "," + value["Date11"] + "," + value["Date10"] + "," + value["Date9"] + "," + value["Date8"] + "," + value["Date7"] + "," + value["Date6"] + "," + value["Date5"] + "," + value["Date4"] + "," + value["Date3"] + "," + value["Date2"] + "," + value["Date1"];
+                        i++;
+                    }
+                    else
+                    {
+                        TicketsRecPenClo = value["Date15"] + "," + value["Date14"] + "," + value["Date13"] + "," + value["Date12"] + "," + value["Date11"] + "," + value["Date10"] + "," + value["Date9"] + "," + value["Date8"] + "," + value["Date7"] + "," + value["Date6"] + "," + value["Date5"] + "," + value["Date4"] + "," + value["Date3"] + "," + value["Date2"] + "," + value["Date1"];
+                        i++;
+                    }
+                }
+                ViewBag.ticketsVolumeDateRange = DateBuilder;
+                ViewBag.ticketsReceived = TicketsReceived;
+                ViewBag.ticketsResolved = TicketsResolved;
+                ViewBag.ticketsRecpenClosure = TicketsRecPenClo;
+                ViewBag.ticketsBacklog = ticketsBackLog;
+                if (ispdf == 1)
+                {
+
+                    _partialView = "~/Views/QBR/_TicketVolumePdf.cshtml";
+                }
+                else
+                {
+                    _partialView = "~/Views/QBR/_TicketVolume.cshtml";
+                }
+            }
+            if (TabId == 2)
+            {
+                _partialView = "~/Views/QBR/_TeamWiseticketOverview.cshtml";
+            }
+
+            if (TabId == 3)
+            {
+                _partialView = "~/Views/QBR/_SlaPerformance.cshtml";
+            }
+            if (TabId == 4)
+            {
+                _partialView = "~/Views/QBR/_Tickets.cshtml";
+            }
+            if (TabId == 5)
+            {
+                _partialView = "~/Views/QBR/_Configuration.cshtml";
+            }
+            else if (TabId == 6)
+            {
+                _partialView = "~/Views/QBR/_Agenda.cshtml";
+            }
+            else if (TabId == 7)
+            {
+                _partialView = "~/Views/QBR/_Objective.cshtml";
+            }
+            else if (TabId == 8)
+            {
+                _partialView = "~/Views/QBR/_Recommendation.cshtml";
+            }
+            else if (TabId == 9)
+            {
+                _partialView = "~/Views/QBR/_Conclusion.cshtml";
+            }
+            return PartialView(_partialView);
+        }
+        // Commented by Rakesh
+        //[HttpPost]
+        //public JsonResult GetPagedData(int pageNo)
+        //{
+        //    IGraph graph = new Graph();
+        //    ServiceManager _servMgr = new ServiceManager();
+        //    graph = _servMgr.GetDateDiff(DateTime.Now.AddYears(-1), DateTime.Now, 0, pageNo, 2000);
+        //    return Json(new { d = graph.Data }, JsonRequestBehavior.AllowGet);
+        //}
+
+        ///// <summary>
+        ///// Fetch the data for Service tabs and sent it back to view.
+        ///// </summary>
+        ///// <param name="companyId">Company Id</param>
+        ///// <param name="TabNumber">current tab number</param>
+        ///// <returns>Json Data</returns>
+        ///// <Author>Rohit Singh Negi</Author>
+        ///// <Date>17/04/2014</Date>
+        public ActionResult QBRTabData(int companyId, int TabNumber, int? ispdf, int Board = 0)
+        {
+            Board = Convert.ToInt32(Session["board"]);
+            //entity.CommandTimeout = 500;
+            if (ispdf == 1)
+            {
+                companyId = (int)Session["pdfcompanyid"];
+            }
+            else
+            {
+                Session["pdfcompanyid"] = companyId;
+            }
+            QBRManager _qbrMgr = new QBRManager();
+            switch (TabNumber)
+            {
+                case 2:
+                    var outPut = _qbrMgr.USP_Service_TicketByTeam(companyId, Board);
+                    return Json(new { Data = outPut }, JsonRequestBehavior.AllowGet);
+                case 3:
+                    var slaperformance = _qbrMgr.USP_Service_SLAPerformance(1, 100, companyId, Board);
+                    return Json(new { Data = slaperformance }, JsonRequestBehavior.AllowGet);
+                case 4:
+                    var tickets = _qbrMgr.USP_Service_TicketsInformation(companyId, Board);
+                    return Json(new { Data = tickets }, JsonRequestBehavior.AllowGet);
+                case 5:
+                    var configuration = _qbrMgr.USP_Service_Configuration(1, 1000, companyId, Board);
+                    return Json(new { Data = configuration }, JsonRequestBehavior.AllowGet);
+                case 6:
+                    Output output = new Output();
+                    output.IsSucess = true;
+                    output.ResponseData = Server.HtmlDecode(_qbrMgr.GetAgenda(0, companyId));
+                    return Json(new { Data = output }, JsonRequestBehavior.AllowGet);
+                case 7:
+                    output = new Output();
+                    output.IsSucess = true;
+                    output.ResponseData = Server.HtmlDecode(_qbrMgr.GetExecutiveSummary(0, companyId));
+                    //Server.HtmlDecode(_qbrMgr.GetExecutiveSummary(0, companyId))
+                    return Json(new { Data = output }, JsonRequestBehavior.AllowGet);
+                case 8:
+                    output = new Output();
+                    output.IsSucess = true;
+                    output.ResponseData = Server.HtmlDecode(_qbrMgr.GetRecommendation(0, companyId));
+                    return Json(new { Data = output }, JsonRequestBehavior.AllowGet);
+                case 9:
+                    output = new Output();
+                    output.IsSucess = true;
+                    output.ResponseData = Server.HtmlDecode(_qbrMgr.GetConclusion(0, companyId));
+                    return Json(new { Data = output }, JsonRequestBehavior.AllowGet);
+            }
+            return null;
+        }
+        [HttpPost]
+        public ActionResult SaveRecomendation(int companyId, string EditorTextArea, string QBRType)
+        {
+            QBRManager _obrMgr = new QBRManager();
+            if (companyId == -1 || companyId == null)
+            {
+                companyId = 0;
+            }
+            try
+            {
+                if (QBRType == "Agenda")
+                {
+                    _obrMgr.insAgenda(0, companyId, EditorTextArea);
+                }
+                else if (QBRType == "ExecutiveSummary")
+                {
+                    _obrMgr.insExecutivesummary(0, companyId, EditorTextArea);
+                }
+                else if (QBRType == "Recommendation")
+                {
+                    _obrMgr.insRemommendation(0, companyId, EditorTextArea);
+                }
+                else if (QBRType == "Conclusion")
+                {
+                    _obrMgr.insConclusion(0, companyId, EditorTextArea);
+                }
+                return Json(new { Data = "Saved" });
+            }
+            catch (Exception)
+            {
+                return Json(new { Data = "Error" });
+            }
+        }
+
+        public ActionResult PrintQBR_Pdf_Format()
+        {
+            return View();
+        }
+        /// <summary>
+        /// Method is used to generate gap in pdf.
+        /// </summary>
+        /// <param name="companyId">Company Id</param>
+        /// <returns>Pdf table</returns>
+        /// <author>Rohit Singh Negi</author>
+        /// <Date>18/05/2014</Date>
+        public PdfPTable AddGap(int j)
+        {
+            PdfPTable gaptable = new PdfPTable(1);
+            for (int i = 0; i <= j; i++)
+            {
+
+                PdfPCell gapcell = new PdfPCell(new Phrase());
+                gapcell.BorderWidthBottom = 0f;
+                gapcell.BorderWidthTop = 0f;
+                gapcell.BorderWidthLeft = 0f;
+                gapcell.BorderWidthRight = 0f;
+                gaptable.AddCell(gapcell);
+
+            }
+            return gaptable;
+        }
+        /// <summary>
+        /// Method is used to generate pdf for QBR Data.
+        /// </summary>
+        /// <param name="companyId">Company Id</param>
+        /// <returns>Pdf</returns>
+        /// <author>Rohit Singh Negi</author>
+        /// <Date>19/04/2014</Date>
+        /// <Changes Date>27/06/2014</Changes Date>
+        public FileResult ExportToPdfForQBR(int companyId, string CompanyName, int Board = 0)
+        {
+            QBRManager _qbrMgr = new QBRManager();
+            Board = Convert.ToInt32(Session["board"]);
+            string BoardName;
+            if (Board == 0)
+            {
+                BoardName = "All";
+            }
+            else
+            {
+                BoardName = entity.Usp_GetBoards().ToList().Where(p => p.BoardId.Equals(Board)).FirstOrDefault().BoardName;
+            }
+            entity.CommandTimeout = 500;
+            string imagePath;
+            string companyid = Convert.ToString(Session["pdfcompanyid"] == "" ? "0" : Session["pdfcompanyid"]);
+
+            if (companyid == "0")
+            {
+                imagePath = Server.MapPath("~/Content/assets/img/all-company-1.jpg");
+            }
+            else
+            {
+                imagePath = Server.MapPath("~/Content/assets/img/all-company-2.jpg");
+            }
+            // step 1: creation of a document-object
+            var document = new Document(PageSize.A4, 5, 5, 30, 30);
+            var output = new MemoryStream();
+            iTextSharp.text.Font brown = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.COURIER, 30f, iTextSharp.text.Font.BOLD, new BaseColor(0, 128, 0));
+            iTextSharp.text.Font cellfont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.HELVETICA, 7.2f, iTextSharp.text.Font.NORMAL, new BaseColor(000, 00, 00));
+            iTextSharp.text.Font rptnamefont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.TIMES_ROMAN, 10f, iTextSharp.text.Font.BOLD, new BaseColor(000, 00, 255));
+            iTextSharp.text.Font headingfont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.HELVETICA, 9f, iTextSharp.text.Font.BOLD, new BaseColor(000, 00, 00));
+            iTextSharp.text.Font headerfont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.HELVETICA, 7.2f, iTextSharp.text.Font.BOLD, new BaseColor(000, 00, 00));
+            iTextSharp.text.Font contentheadingfont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.HELVETICA, 9f, iTextSharp.text.Font.BOLD, new BaseColor(000, 00, 00));
+            iTextSharp.text.Font contentheaderfont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.HELVETICA, 8f, iTextSharp.text.Font.NORMAL, new BaseColor(000, 00, 00));
+            iTextSharp.text.Font boardnamefont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.TIMES_ROMAN, 11f, iTextSharp.text.Font.BOLD, new BaseColor(000, 00, 000));
+            iTextSharp.text.Font ticketheaderfont = new iTextSharp.text.Font(iTextSharp.text.Font.FontFamily.HELVETICA, 4f, iTextSharp.text.Font.BOLD, new BaseColor(000, 00, 00));
+            PdfWriter.GetInstance(document, output);
+            document.Open();
+            #region Title page
+            PdfPTable titlepagetable = new PdfPTable(2);
+            int[] frontpagewidth = { 2, 98 };
+            titlepagetable.SetWidths(frontpagewidth);
+            PdfPCell leftcell = new PdfPCell();
+            leftcell.BorderWidthBottom = 0f;
+            leftcell.BorderWidthTop = 0f;
+            leftcell.BorderWidthLeft = 0f;
+            leftcell.BorderWidthRight = 0f;
+            leftcell.BackgroundColor = new BaseColor(68, 84, 106);
+            titlepagetable.AddCell(leftcell);
+            PdfPTable filenametable = new PdfPTable(1);
+            filenametable.DefaultCell.Border = 0;
+            PdfPCell rightcell = new PdfPCell(filenametable);
+            #region Logo
+            PdfPTable rightgaptable = AddGap(40);
+            rightgaptable.DefaultCell.Border = 0;
+            filenametable.AddCell(rightgaptable);
+            var logo = iTextSharp.text.Image.GetInstance(imagePath);
+            logo.Alignment = Element.ALIGN_RIGHT;
+            logo.ScaleToFit(10, 10);
+            PdfPTable logotbl = new PdfPTable(1);
+            logotbl.DefaultCell.Border = 0;
+            logo.BorderWidthBottom = 0f;
+            logo.BorderWidthTop = 0f;
+            logo.BorderWidthLeft = 0f;
+            logo.BorderWidthRight = 0f;
+            logotbl.AddCell(logo);
+            filenametable.AddCell(logotbl);
+            PdfPTable filenamegaptable = AddGap(10);
+            filenamegaptable.DefaultCell.Border = 0;
+            filenametable.AddCell(filenamegaptable);
+            PdfPTable boardnme = new PdfPTable(2);
+            boardnme.DefaultCell.Border = 0;
+            boardnme.SetWidths(new int[] { 35, 65 });
+            PdfPCell compnycell = new PdfPCell(boardnme);
+            PdfPCell brdleftcell = new PdfPCell(new Phrase("Quarterly Business Review for ", rptnamefont));
+            brdleftcell.BorderWidthBottom = 0f;
+            brdleftcell.BorderWidthTop = 0f;
+            brdleftcell.BorderWidthLeft = 0f;
+            brdleftcell.BorderWidthRight = 0f;
+            boardnme.AddCell(brdleftcell);
+            PdfPCell brdrightcell = new PdfPCell(new Phrase(BoardName + " Boards", boardnamefont));
+            brdrightcell.BorderWidthBottom = 0f;
+            brdrightcell.BorderWidthTop = 0f;
+            brdrightcell.BorderWidthLeft = 0f;
+            brdrightcell.BorderWidthRight = 0f;
+            boardnme.AddCell(brdrightcell);
+            compnycell.PaddingLeft = 70;
+            //compnycell.HorizontalAlignment = Element.ALIGN_RIGHT;
+            compnycell.BorderWidthBottom = 0f;
+            compnycell.BorderWidthTop = 0f;
+            compnycell.BorderWidthLeft = 0f;
+            compnycell.BorderWidthRight = 0f;
+            filenametable.AddCell(compnycell);
+            PdfPTable rightendgaptable = AddGap(50);
+            rightendgaptable.DefaultCell.Border = 0;
+            filenametable.AddCell(rightendgaptable);
+            PdfPTable rightendgaptable1 = AddGap(60);
+            rightendgaptable1.DefaultCell.Border = 0;
+            filenametable.AddCell(rightendgaptable1);
+            #endregion
+            rightcell.BorderWidthBottom = 0f;
+            rightcell.BorderWidthTop = 0f;
+            rightcell.BorderWidthLeft = 0f;
+            rightcell.BorderWidthRight = 0f;
+            titlepagetable.AddCell(rightcell);
+            document.Add(titlepagetable);
+            document.Add(Chunk.NEXTPAGE);
+            #endregion
+
+            #region content
+            PdfPTable contentmaintable = new PdfPTable(2);
+            contentmaintable.DefaultCell.Border = 0;
+            contentmaintable.SetWidths(new int[] { 2, 98 });
+            PdfPCell contentleftcell = new PdfPCell();
+            contentleftcell.BorderWidthBottom = 0f;
+            contentleftcell.BorderWidthTop = 0f;
+            contentleftcell.BorderWidthLeft = 0f;
+            contentleftcell.BorderWidthRight = 0f;
+            contentleftcell.BackgroundColor = new BaseColor(68, 84, 106);
+            contentmaintable.AddCell(contentleftcell);
+            PdfPTable setcontent = new PdfPTable(3);
+            setcontent.DefaultCell.Padding = 3;
+            setcontent.DefaultCell.BorderColor = BaseColor.GRAY;
+            PdfPCell contentrightcell = new PdfPCell(setcontent);
+            contentrightcell.BorderWidthBottom = 0f;
+            contentrightcell.BorderWidthTop = 0f;
+            contentrightcell.BorderWidthLeft = 0f;
+            contentrightcell.BorderWidthRight = 0f;
+            int[] setwid = { 10, 20, 70 };
+            setcontent.SetWidths(setwid);
+            setcontent.DefaultCell.Phrase = new Phrase() { Font = brown };
+            PdfPCell contentgapcell = new PdfPCell();
+            contentgapcell.BorderWidthBottom = 0f;
+            contentgapcell.BorderWidthTop = 0f;
+            contentgapcell.BorderWidthLeft = 0f;
+            contentgapcell.BorderWidthRight = 0f;
+            for (int g = 0; g < 27; g++)
+            {
+                setcontent.AddCell(contentgapcell);
+                setcontent.AddCell(contentgapcell);
+                setcontent.AddCell(contentgapcell);
+            }
+            setcontent.AddCell(contentgapcell);
+            PdfPCell contentcell1 = new PdfPCell(new Phrase("Sr No.", contentheadingfont));
+            contentcell1.BackgroundColor = new BaseColor(204, 204, 204);
+            contentcell1.BorderColor = BaseColor.GRAY;
+            setcontent.AddCell(contentcell1);
+            PdfPCell contentcell2 = new PdfPCell(new Phrase("Content", contentheadingfont));
+            contentcell2.BackgroundColor = new BaseColor(204, 204, 204);
+            contentcell2.BorderColor = BaseColor.GRAY;
+            setcontent.AddCell(contentcell2);
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("1", contentheaderfont));
+            setcontent.AddCell(new Phrase("Agenda ", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("2", contentheaderfont));
+            setcontent.AddCell(new Phrase("Executive Summary ", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("3", contentheaderfont));
+            setcontent.AddCell(new Phrase("Ageing Tickets", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("4", contentheaderfont));
+            setcontent.AddCell(new Phrase("Ticket Volume(Last 15 Days) ", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("5", contentheaderfont));
+            setcontent.AddCell(new Phrase("Tickets", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("6", contentheaderfont));
+            setcontent.AddCell(new Phrase("Team Wise Ticket Overview ", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("7", contentheaderfont));
+            setcontent.AddCell(new Phrase("SLA Performance ", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("8", contentheaderfont));
+            setcontent.AddCell(new Phrase("Configuration", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("9", contentheaderfont));
+            setcontent.AddCell(new Phrase("Recommendation ", contentheaderfont));
+            setcontent.AddCell(contentgapcell);
+            setcontent.AddCell(new Phrase("10", contentheaderfont));
+            setcontent.AddCell(new Phrase("Conclusion", contentheaderfont));
+            for (int g = 0; g < 130; g++)
+            {
+                setcontent.AddCell(contentgapcell);
+                setcontent.AddCell(contentgapcell);
+                setcontent.AddCell(contentgapcell);
+            }
+            contentmaintable.AddCell(contentrightcell);
+            document.Add(contentmaintable);
+            document.Add(Chunk.NEXTPAGE);
+            #endregion
+
+            #region Agenda
+            // we add content to the document
+            PdfPTable dt9 = new PdfPTable(1);
+            dt9.DefaultCell.Border = 0;
+            dt9.HeaderRows = 1;
+            PdfPCell Agendacell = new PdfPCell(new Phrase("Agenda", headingfont));
+            Agendacell.BackgroundColor = new BaseColor(204, 204, 204);
+            Agendacell.BorderColor = BaseColor.GRAY;
+            Agendacell.Padding = 3;
+            dt9.AddCell(Agendacell);
+           // string agentdata = Server.HtmlDecode(entity.GetAgenda(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault());
+            string agentdata =  Server.HtmlDecode(_qbrMgr.GetAgenda(0, Convert.ToInt32(companyid)));
+            if (agentdata != "" && agentdata != null)
+            {
+                List<IElement> htmlElements = HTMLWorker.ParseToList(new StringReader(agentdata.ToString()), null);
+                for (int i = 0; i < htmlElements.Count; i++)
+                {
+                    Phrase htmlElement = ((Phrase)htmlElements[i]);
+                    dt9.AddCell(htmlElement);
+                }
+            }
+            else
+            {
+                dt9.AddCell(" ");
+            }
+            document.Add(dt9);
+            #endregion
+
+            #region gap
+            PdfPTable gaptable2 = AddGap(8);
+            document.Add(gaptable2);
+
+            #endregion
+
+            #region Executive Summary
+
+
+
+            // we add content to the document
+
+            PdfPTable dt10 = new PdfPTable(1);
+            dt10.DefaultCell.Border = 0;
+            dt10.DefaultCell.Padding = 1;
+            dt10.HeaderRows = 1;
+
+            PdfPCell executivecell = new PdfPCell(new Phrase("Executive Summary", headingfont));
+            executivecell.BackgroundColor = new BaseColor(204, 204, 204);
+            executivecell.BorderColor = BaseColor.GRAY;
+            dt10.AddCell(executivecell);
+
+
+            //string Executivedata = Server.HtmlDecode(entity.GetExecutiveSummary(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault());
+            string Executivedata = Server.HtmlDecode(_qbrMgr.GetExecutiveSummary(0, Convert.ToInt32(companyid)));
+            if (Executivedata != "" && Executivedata != null)
+            {
+                List<IElement> htmlElements = HTMLWorker.ParseToList(new StringReader(Executivedata.ToString()), null);
+
+
+                for (int i = 0; i < htmlElements.Count; i++)
+                {
+
+                    Phrase htmlElement = ((Phrase)htmlElements[i]);
+                    dt10.AddCell(htmlElement);
+
+
+                }
+            }
+            else
+            {
+                dt10.AddCell(" ");
+            }
+
+
+            document.Add(dt10);
+
+            #endregion
+
+            #region gap
+
+
+            document.Add(gaptable2);
+
+            #endregion
+
+            #region Ageing
+
+            //step 4: we add content to the document
+
+            PdfPTable Ageingdt1 = new PdfPTable(19);
+            Ageingdt1.DefaultCell.Padding = 3;
+            Ageingdt1.DefaultCell.BorderColor = BaseColor.GRAY;
+            PdfPCell headcell = new PdfPCell(new Phrase("Ageing Tickets (Last 90 days)", headingfont));
+            headcell.Padding = 4;
+            headcell.BorderColor = BaseColor.GRAY;
+            headcell.BackgroundColor = new BaseColor(204, 204, 204);
+
+            headcell.Colspan = 19;
+            Ageingdt1.AddCell(headcell);
+            Ageingdt1.DefaultCell.NoWrap = false;
+            Ageingdt1.AddCell(new Phrase("1-5 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("6-10 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("11-15 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("16-20 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("21-25 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("26-30 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("31-35 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("36-40 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("41-45 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("46-50 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("51-55 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("55-60 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("61-65 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("66-70 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("71-75 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("76-80 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("81-85 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("86-90 Days", headerfont));
+            Ageingdt1.AddCell(new Phrase("Total", headerfont));
+
+            float wid = Ageingdt1.DefaultCell.Width;
+            //List<USP_Services_GetAgeTickets_Result> AgeList = new List<USP_Services_GetAgeTickets_Result>();
+            //AgeList = entity.USP_Services_GetAgeTickets(DateTime.Now, Convert.ToInt32(companyid), Board).ToList();
+
+            var _AgeListoutput = _qbrMgr.USP_Services_GetAgeTickets(DateTime.Now, Convert.ToInt32(companyid), Board);
+            var AgeList = (List<Dictionary<string, object>>)_AgeListoutput.ResponseData;  
+            if (AgeList != null)
+            {
+                if (AgeList.Count > 0)
+                {
+                    foreach (var data in AgeList)
+                    {
+                        Ageingdt1.AddCell(new Phrase(data["C5Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C10Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C15Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C20Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C25Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C30Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C35Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C40Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C45Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C50Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C55Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C60Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C65Days"]+ "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C70Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C75Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C80Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C85Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(data["C90Days"] + "", cellfont));
+                        Ageingdt1.AddCell(new Phrase(Convert.ToString(Convert.ToUInt32(data["C5Days"]) + Convert.ToUInt32(data["C10Days"]) + Convert.ToUInt32(data["C15Days"]) + Convert.ToUInt32(data["C20Days"]) + Convert.ToUInt32(data["C25Days"]) + Convert.ToUInt32(data["C30Days"]) + Convert.ToUInt32(data["C35Days"]) + +Convert.ToUInt32(data["C40Days"]) + Convert.ToUInt32(data["C45Days"]) + Convert.ToUInt32(data["C50Days"]) + Convert.ToUInt32(data["C55Days"]) + Convert.ToUInt32(data["C60Days"]) + Convert.ToUInt32(data["C65Days"]) + Convert.ToUInt32(data["C70Days"]) + Convert.ToUInt32(data["C75Days"]) + Convert.ToUInt32(data["C80Days"]) + Convert.ToUInt32(data["C85Days"]) + Convert.ToUInt32(data["C90Days"])), cellfont));
+                    }
+                }
+                else
+                {
+                    {
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+                        Ageingdt1.AddCell(" ");
+
+                    }
+                }
+            }
+            else
+            {
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+                Ageingdt1.AddCell(" ");
+            }
+
+            // add datatable to document
+            document.Add(Ageingdt1);
+
+
+            #endregion
+
+            #region gap
+
+            document.Add(gaptable2);
+
+            #endregion
+
+            #region Ticket Volume
+            float[] tblwidth = { 15, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10 };
+            PdfPTable dtticketvolume = new PdfPTable(16);
+
+            dtticketvolume.SetWidths(tblwidth);
+            dtticketvolume.DefaultCell.Padding = 3;
+            dtticketvolume.DefaultCell.BorderColor = BaseColor.GRAY;
+            String[] fixedcol = new string[] { "Tickets Backlog", "Tickets Received", "Tickets Resolved", "Total Resolved Pending Closure" };
+            int f = 0;
+
+
+            PdfPCell ticketcell = new PdfPCell(new Phrase("Ticket Volume(Last 15 days)", headingfont));
+            ticketcell.BorderColor = BaseColor.GRAY;
+            ticketcell.BackgroundColor = new BaseColor(204, 204, 204);
+            ticketcell.Colspan = 16;
+            ticketcell.Padding = 3;
+            dtticketvolume.AddCell(ticketcell);
+            dtticketvolume.HeaderRows = 1;
+
+            dtticketvolume.AddCell(new Phrase("Trend Data", headerfont));
+
+            for (int j = 14; j >= 0; j--)
+            {
+                string indate = "";
+                var dte = DateTime.Now.AddDays(-j).Day;
+                if (dte < 10)
+                {
+                    indate = "0" + dte.ToString();
+                }
+                else
+                {
+                    indate = dte.ToString();
+                }
+                var month = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName((DateTime.Now.AddDays(-j).Month)).ToList();
+                string monthname = "";
+
+                for (int ii = 0; ii < 3; ii++)
+                {
+                    monthname += month[ii];
+                }
+                dtticketvolume.AddCell(new Phrase(indate + " " + monthname, headerfont));
+            }
+
+            var _output = _qbrMgr.USP_Service_TicketVolume(Convert.ToInt32(companyid), Board);
+            var TicketVolumeList = (List<Dictionary<string, object>>)_output.ResponseData;       
+          
+            if (TicketVolumeList != null)
+            {
+                if (TicketVolumeList.Count > 0)
+                {
+                    foreach (var t in TicketVolumeList)
+                    {
+                        PdfPCell hdcell = new PdfPCell(new Phrase(fixedcol[f], headerfont));
+
+
+
+                        dtticketvolume.AddCell(hdcell);
+                        dtticketvolume.AddCell(new Phrase(t["Date1"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date2"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date3"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date4"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date5"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date6"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date7"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date8"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date9"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date10"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date11"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date12"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date13"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date14"] + "", cellfont));
+                        dtticketvolume.AddCell(new Phrase(t["Date15"] + "", cellfont));
+                        f++;
+
+                    }
+                }
+                else
+                {
+                    {
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                        dtticketvolume.AddCell(" ");
+                    }
+                }
+            }
+            else
+            {
+
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+                dtticketvolume.AddCell(" ");
+            }
+
+            // add datatable to document
+            document.Add(dtticketvolume);
+
+            #endregion
+
+            #region gap
+
+            document.Add(gaptable2);
+
+            #endregion
+
+            #region Tickets
+            // we add content to the document
+
+            PdfPTable dt6 = new PdfPTable(7);
+            dt6.DefaultCell.Padding = 3;
+            dt6.DefaultCell.BorderColor = BaseColor.GRAY;
+            dt6.HeaderRows = 2;
+
+            PdfPCell tickcell = new PdfPCell(new Phrase("Tickets", headingfont));
+            tickcell.BorderColor = BaseColor.GRAY;
+            tickcell.BackgroundColor = new BaseColor(204, 204, 204);
+            tickcell.Padding = 3;
+            tickcell.Colspan = 7;
+            dt6.AddCell(tickcell);
+            dt6.AddCell(new Phrase("Total Tickets", headerfont));
+            dt6.AddCell(new Phrase("Service Type", headerfont));
+            dt6.AddCell(new Phrase("Tickets(Customer Staff Member)", headerfont));
+            dt6.AddCell(new Phrase("Tickets By Type", headerfont));
+            dt6.AddCell(new Phrase("Tickets by Sub-Type", headerfont));
+            dt6.AddCell(new Phrase("Tickets By Item", headerfont));
+            dt6.AddCell(new Phrase("Tickets Currently Open", headerfont));
+            entity.CommandTimeout = 500;
+            var _Ticketsoutput = _qbrMgr.USP_Service_TicketsInformation(Convert.ToInt32(companyid), Board);
+            var tickets = (List<Dictionary<string, object>>)_Ticketsoutput.ResponseData;    
+
+            //List<USP_Service_TicketsInformation_Result> tickets = new List<USP_Service_TicketsInformation_Result>();
+            //tickets = entity.(Convert.ToInt32(companyid), Board).ToList();
+            if (tickets != null)
+            {
+                if (tickets.Count > 0)
+                {
+                    foreach (var data in tickets)
+                    {
+                        dt6.AddCell(new Phrase(data["TotalTickets"] + "", cellfont));
+                        dt6.AddCell(new Phrase(data["ConfigTicket"] + "", cellfont));
+                        dt6.AddCell(new Phrase(data["customerstaffmember"] + "", cellfont));
+                        dt6.AddCell(new Phrase(data["ServiceType"] + "", cellfont));
+                        dt6.AddCell(new Phrase(data["ServiceSubType"] + "", cellfont));
+                        dt6.AddCell(new Phrase(data["ItemTickets"] + "", cellfont));
+                        dt6.AddCell(new Phrase(data["OpenTickets"] + "", cellfont));
+                    }
+                }
+                else
+                {
+                    dt6.AddCell(" ");
+                    dt6.AddCell(" ");
+                    dt6.AddCell(" ");
+                    dt6.AddCell(" ");
+                    dt6.AddCell(" ");
+                    dt6.AddCell(" ");
+                    dt6.AddCell(" ");
+                }
+            }
+            else
+            {
+                dt6.AddCell(" ");
+                dt6.AddCell(" ");
+                dt6.AddCell(" ");
+                dt6.AddCell(" ");
+                dt6.AddCell(" ");
+                dt6.AddCell(" ");
+                dt6.AddCell(" ");
+            }
+            document.Add(dt6);
+
+            #endregion
+
+            #region gap
+
+            document.Add(gaptable2);
+
+            #endregion
+
+            #region Team wise Ticket Overview
+
+            PdfPTable dt2 = new PdfPTable(2);
+            dt2.DefaultCell.Padding = 3;
+            dt2.DefaultCell.BorderColor = BaseColor.GRAY;
+
+
+
+            dt2.HeaderRows = 2;
+
+
+            PdfPCell teamcell = new PdfPCell(new Phrase("Team wise Ticket Overview", headingfont));
+            teamcell.Padding = 3;
+            teamcell.BorderColor = BaseColor.GRAY;
+            teamcell.BackgroundColor = new BaseColor(204, 204, 204);
+            teamcell.Colspan = 2;
+            dt2.AddCell(teamcell);
+            dt2.AddCell(new Phrase("Team Name", headerfont));
+            dt2.AddCell(new Phrase("Total Ticket", headerfont));
+
+            //List<USP_Service_TicketByTeam_Result> TicketByTeam = new List<USP_Service_TicketByTeam_Result>();
+            //TicketByTeam = entity.USP_Service_TicketByTeam(Convert.ToInt32(companyid), Board).ToList();
+
+            var _TicketByTeamoutput = _qbrMgr.USP_Service_TicketByTeam(Convert.ToInt32(companyid), Board);
+            var TicketByTeam = (List<Dictionary<string, object>>)_TicketByTeamoutput.ResponseData;  
+            if (TicketByTeam != null)
+            {
+                if (TicketByTeam.Count > 0)
+                {
+                    foreach (var data in TicketByTeam)
+                    {
+                        dt2.AddCell(new Phrase(data["TeamName"] + "", cellfont));
+                        dt2.AddCell(new Phrase(data["TotalTicket"] + "", cellfont));
+                    }
+                }
+                else
+                {
+                    {
+                        dt2.AddCell(" ");
+                        dt2.AddCell(" ");
+                    }
+                }
+            }
+            else
+            {
+
+                dt2.AddCell(" ");
+                dt2.AddCell(" ");
+            }
+
+            // add datatable to document
+            document.Add(dt2);
+
+            #endregion
+
+            #region gap
+
+            document.Add(gaptable2);
+
+            #endregion
+
+            #region SLA Performance
+
+            // we add content to the document
+
+            PdfPTable dt4 = new PdfPTable(11);
+            dt4.DefaultCell.Padding = 3;
+            dt4.SetWidths(new int[] { 7, 8, 7, 8, 8, 8, 9, 9, 9, 9, 9 });
+            dt4.DefaultCell.BorderColor = BaseColor.GRAY;
+
+            dt4.HeaderRows = 2;
+
+
+
+            PdfPCell slacell = new PdfPCell(new Phrase("SLA Performance", headingfont));
+            slacell.Padding = 3;
+            slacell.BorderColor = BaseColor.GRAY;
+            slacell.BackgroundColor = new BaseColor(204, 204, 204);
+            slacell.Colspan = 11;
+            dt4.AddCell(slacell);
+
+
+
+
+
+            dt4.AddCell(new Phrase("Ticket#", headerfont));
+            dt4.AddCell(new Phrase("SLA Name", headerfont));
+            dt4.AddCell(new Phrase("Priority", headerfont));
+            // dt4.AddCell(new Phrase("Summary", headerfont));
+            //dt4.AddCell(new Phrase("Start Date", headerfont));
+            // dt4.AddCell(new Phrase("End Date", headerfont));
+
+            dt4.AddCell(new Phrase("Date Resolved UTC", headerfont));
+            dt4.AddCell(new Phrase("Date Responded UTC", headerfont));
+            dt4.AddCell(new Phrase("Date Resolved Plan", headerfont));
+            dt4.AddCell(new Phrase("Resolution Plan", headerfont));
+            dt4.AddCell(new Phrase("Responded Goal", headerfont));
+            dt4.AddCell(new Phrase("Resolution Plan Goal", headerfont));
+            dt4.AddCell(new Phrase("Resolution Goal", headerfont));
+            dt4.AddCell(new Phrase("Responded", headerfont));
+
+            //dt4.AddCell(new Phrase("Resoulation", headerfont));
+            //List<USP_Service_SLAPerformance_Result> slaperformance = new List<USP_Service_SLAPerformance_Result>();
+            //slaperformance = entity.USP_Service_SLAPerformance(1, 100, Convert.ToInt32(companyid), Board).ToList();
+
+            var _slaperformanceoutput = _qbrMgr.USP_Service_SLAPerformance(1, 100, Convert.ToInt32(companyid),Board);
+            var slaperformance = (List<Dictionary<string, object>>)_slaperformanceoutput.ResponseData;  
+            if (slaperformance != null)
+            {
+                if (slaperformance.Count > 0)
+                {
+                    foreach (var data in slaperformance)
+                    {
+                        dt4.AddCell(new Phrase(data["TicketNo"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["SLAName"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["Priority"] + "", cellfont));
+                        //dt4.AddCell(new Phrase(data.Summary + "", cellfont));
+                        //dt4.AddCell(new Phrase(data.StartDate + "", cellfont));
+                        //dt4.AddCell(new Phrase(data.EndDate + "", cellfont));                
+                        dt4.AddCell(new Phrase(data["Date_Resolved_UTC"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["Date_Responded_UTC"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["Date_ResPlan_UTC"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["ResolutionPlan"] + "", cellfont));
+
+                        dt4.AddCell(new Phrase(data["RespondedGoal"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["ResolutionPlanGoal"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["ResolutionGoal"] + "", cellfont));
+                        dt4.AddCell(new Phrase(data["Responded"] + "", cellfont));
+                        // dt4.AddCell(new Phrase(data.Resoulation + "", cellfont));
+                    }
+                }
+                else
+                {
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                    dt4.AddCell(" ");
+                }
+            }
+            else
+            {
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+                dt4.AddCell(" ");
+            }
+            document.Add(dt4);
+            #endregion
+
+            #region gap
+            document.Add(gaptable2);
+            #endregion
+
+            #region Configuration
+            // we add content to the document
+            PdfPTable dt8 = new PdfPTable(4);
+            dt8.DefaultCell.Padding = 3;
+            dt8.DefaultCell.BorderColor = BaseColor.GRAY;
+            dt8.HeaderRows = 2;
+            PdfPCell confcell = new PdfPCell(new Phrase("Configuration", headingfont));
+            confcell.BorderColor = BaseColor.GRAY;
+            confcell.Padding = 3;
+            confcell.BackgroundColor = new BaseColor(204, 204, 204);
+            confcell.Colspan = 4;
+            dt8.AddCell(confcell);
+            dt8.AddCell(new Phrase("Configuration Type", headerfont));
+            dt8.AddCell(new Phrase("Configuration Name", headerfont));
+            dt8.AddCell(new Phrase("Configuration Serial Number", headerfont));
+            dt8.AddCell(new Phrase("Configuration Contract", headerfont));
+            //List<USP_Service_Configuration_Result> Configuration = new List<USP_Service_Configuration_Result>();
+            //Configuration = entity.USP_Service_Configuration(1, 100, Convert.ToInt32(companyid), Board).ToList();
+            var _Configurationoutput = _qbrMgr.USP_Service_Configuration(1, 100, Convert.ToInt32(companyid), Board);
+            var Configuration = (List<Dictionary<string, object>>)_Configurationoutput.ResponseData;  
+            if (Configuration != null)
+            {
+                if (Configuration.Count > 0)
+                {
+                    foreach (var data in Configuration)
+                    {
+                        dt8.AddCell(new Phrase(data["ConfigType"] + "", cellfont));
+                        dt8.AddCell(new Phrase(data["ConfigName"] + "", cellfont));
+                        dt8.AddCell(new Phrase(data["ConfigSerialNo"] + "", cellfont));
+                        dt8.AddCell(new Phrase(data["ConfigContact"] + "", cellfont));
+
+                    }
+                }
+                else
+                {
+                    dt8.AddCell(" ");
+                    dt8.AddCell(" ");
+                    dt8.AddCell(" ");
+                    dt8.AddCell(" ");
+                }
+            }
+            else
+            {
+                dt8.AddCell(" ");
+                dt8.AddCell(" ");
+                dt8.AddCell(" ");
+                dt8.AddCell(" ");
+            }
+            document.Add(dt8);
+            #endregion
+
+            #region gap
+            document.Add(gaptable2);
+            #endregion
+
+            #region Recommendation
+            // we add content to the document
+            PdfPTable dt11 = new PdfPTable(1);
+            dt11.DefaultCell.Padding = 1;
+            dt11.DefaultCell.Border = 0;
+            dt11.HeaderRows = 1;
+            PdfPCell Recommendationcell = new PdfPCell(new Phrase("Recommendation", headingfont));
+            Recommendationcell.BackgroundColor = new BaseColor(204, 204, 204);
+            Recommendationcell.BorderColor = BaseColor.GRAY;
+            dt11.AddCell(Recommendationcell);
+            //string recommendationdata = Server.HtmlDecode(entity.GetRecommendation(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault());
+            string recommendationdata = Server.HtmlDecode(_qbrMgr.GetRecommendation(0, Convert.ToInt32(companyid)));
+            if (recommendationdata != "" && recommendationdata != null)
+            {
+                List<IElement> htmlElements = HTMLWorker.ParseToList(new StringReader(recommendationdata.ToString()), null);
+                for (int i = 0; i < htmlElements.Count; i++)
+                {
+                    Phrase htmlElement = ((Phrase)htmlElements[i]);
+                    dt11.AddCell(htmlElement);
+                }
+            }
+            else
+            {
+                dt11.AddCell(" ");
+            }
+            document.Add(dt11);
+            #endregion
+
+            #region gap
+
+            document.Add(gaptable2);
+            #endregion
+
+            #region Conclusion
+            // we add content to the document
+            PdfPTable dt12 = new PdfPTable(1);
+            dt12.DefaultCell.Padding = 1;
+            dt12.DefaultCell.Border = 0;
+            dt12.HeaderRows = 1;
+            PdfPCell Conclusioncell = new PdfPCell(new Phrase("Conclusion", headingfont));
+            Conclusioncell.BackgroundColor = new BaseColor(204, 204, 204);
+            Conclusioncell.BorderColor = BaseColor.GRAY;
+            dt12.AddCell(Conclusioncell);
+           // string conclusiondata = Server.HtmlDecode(entity.GetConclusion(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault());
+            string conclusiondata =  Server.HtmlDecode( _qbrMgr.GetConclusion(0, Convert.ToInt32(companyid)));
+            if (conclusiondata != "" && conclusiondata != null)
+            {
+                List<IElement> htmlElements = HTMLWorker.ParseToList(new StringReader(conclusiondata.ToString()), null);
+                for (int i = 0; i < htmlElements.Count; i++)
+                {
+                    Phrase htmlElement = ((Phrase)htmlElements[i]);
+                    dt12.AddCell(htmlElement);
+                }
+            }
+            else
+            {
+                dt12.AddCell(" ");
+            }
+            document.Add(dt12);
+            #endregion
+            //This is important don't forget to close the document
+            document.Close();
+            // send the memory stream as File
+            return File(output.ToArray(), "application/pdf", "QuarterlyBusinessReview" + ".pdf");
+        }
+        public ActionResult QBR_Pdf_Format()
+        {
+            int companyid;
+            if (Session["pdfcompanyid"] != null)
+            {
+                companyid = Convert.ToInt32(Session["pdfcompanyid"]);
+            }
+            else
+            {
+                companyid = 0;
+            }
+            int Board = Convert.ToInt32(Session["board"]);
+            string BoardName;
+            if (Board == 0)
+            {
+                BoardName = "All Boards";
+            }
+            else
+            {
+                BoardName = entity.Usp_GetBoards().ToList().Where(p => p.BoardId.Equals(Board)).FirstOrDefault().BoardName + " Board";
+            }
+            if (companyid == 0)
+            {
+
+                ViewBag.CompanyName = "All";
+                var Agentdata = entity.GetAgenda(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.agentdata = Server.HtmlDecode(Agentdata);
+                var recommendationdata = entity.GetRecommendation(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.recommdata = Server.HtmlDecode(recommendationdata);
+                var executivedata = entity.GetExecutiveSummary(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.executive = Server.HtmlDecode(executivedata);
+                var conclusiondata = entity.GetConclusion(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.conclusion = Server.HtmlDecode(conclusiondata);
+            }
+            else
+            {
+                ViewBag.CompanyName = "specific";
+                var Agentdata = entity.GetAgenda(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.agentdata = Server.HtmlDecode(Agentdata);
+                var recommendationdata = entity.GetRecommendation(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.recommdata = Server.HtmlDecode(recommendationdata);
+                var executivedata = entity.GetExecutiveSummary(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.executive = Server.HtmlDecode(executivedata);
+                var conclusiondata = entity.GetConclusion(0, Convert.ToInt32(companyid)).ToList().FirstOrDefault();
+                ViewBag.conclusion = Server.HtmlDecode(conclusiondata);
+            }
+            ViewBag.BoardName = BoardName;
+            // string companyname = string.Empty;
+            // ViewBag.ComId = companyid;
+            ViewBag.QBRList = Session["FinalListData"];
+            try
+            {
+                //SendEmailToMemberDirect("a", Session["companyid"] + "");
+            }
+            catch (Exception)
+            {
+            }
+            return View();
+        }
+        public ActionResult TeamwiseTicketOverview(int TabId)
+        {
+            string _partialView;
+            switch (TabId)
+            {
+
+                case 2:
+                    _partialView = "~/Views/QBR/_TeamwiseTicketOverviewPdf.cshtml";
+                    return PartialView(_partialView);
+                case 3: _partialView = "~/Views/QBR/_SLAPerformancePdf.cshtml";
+                    return PartialView(_partialView);
+
+                case 4: _partialView = "~/Views/QBR/_TicketsPdf.cshtml";
+                    return PartialView(_partialView);
+
+                case 5: _partialView = "~/Views/QBR/_ConfigurationPdf.cshtml";
+                    return PartialView(_partialView);
+
+            }
+            return null;
+        }
+        public ActionResult GetAgingTicketData(int? CompanyId, int Board = 0)
+        {
+            Session["board"] = Board;
+
+            entity.CommandTimeout = 500;
+            if (CompanyId == null)
+            {
+                CompanyId = 0;
+
+            }
+            else
+            {
+                Session["pdfcompanyid"] = CompanyId;
+            }
+
+            //get quarter start date till today
+            int FrequencyId = Convert.ToInt32(Common.FrequencyType.QuarterToDate);
+            string resTicketCounter = "";
+            DateTime startDate = DateTime.Today.AddDays(-90);
+            DateTime endDate = DateTime.Today;
+            string FinalList = "";
+            string DateRangeList = "";
+
+            Session["FinalListData"] = null;
+            //create array of dates with indexing
+            var Dates = Enumerable.Range(0, 1 + endDate.Subtract(startDate).Days)
+                        .Select(offset => startDate.AddDays(offset)).ToArray();
+
+            List<USP_Services_GetAgeTickets_Result> AgeList = new List<USP_Services_GetAgeTickets_Result>();
+            if (CompanyId == -1)
+                AgeList = entity.USP_Services_GetAgeTickets(DateTime.Now, 0, Board).ToList();
+            else
+                AgeList = entity.USP_Services_GetAgeTickets(DateTime.Now, CompanyId, Board).ToList();
+
+            if (AgeList.Count > 0)
+                FinalList = AgeList[0].C5Days.ToString() + "," + AgeList[0].C10Days.ToString() + "," + AgeList[0].C15Days.ToString() + "," + AgeList[0].C20Days.ToString() + "," +
+                           AgeList[0].C25Days.ToString() + "," + AgeList[0].C30Days.ToString() + "," + AgeList[0].C35Days.ToString() + "," + AgeList[0].C40Days.ToString() + ","
+                           + AgeList[0].C45Days.ToString() + "," + AgeList[0].C50Days.ToString() + "," + AgeList[0].C55Days.ToString() + "," + AgeList[0].C60Days.ToString() + ","
+                           + AgeList[0].C65Days.ToString() + "," + AgeList[0].C70Days.ToString() + "," + AgeList[0].C75Days.ToString() + "," + AgeList[0].C80Days.ToString() + ","
+                           + AgeList[0].C85Days.ToString() + "," + AgeList[0].C90Days.ToString();
+            else
+                FinalList = "0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0";
+            //create loop acc to 5 days range
+            if (Dates.Count() > 0)
+            {
+                int x = 0;
+                for (int i = 0; i < Dates.Count(); i++)
+                {
+                    x = i * 5 == 0 ? 5 : i * 5;
+                    if (x >= Dates.Count())
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        endDate = Dates[x - 1];
+                        startDate = Dates[x - 5];
+
+                        if (DateRangeList == "")
+                        {
+                            DateRangeList = startDate.Day + "-" + endDate.Day + " " + IOReportWise.ToMonthName(endDate);
+                        }
+                        else
+                        {
+                            DateRangeList = DateRangeList + "," + startDate.Day + "-" + endDate.Day + " " + IOReportWise.ToMonthName(endDate);
+                        }
+                    }
+                }
+                string[] data = FinalList.Split(',');
+                int total = 0;
+                for (int a = 1; a < data.Length; a++)
+                {
+                    total = total + Convert.ToInt32(data[a]);
+                }
+                //FinalList = FinalList + "," + total;
+                Session["FinalListData"] = FinalList;
+                ViewBag.QBRList = FinalList;
+            }
+
+            //return Json(new { Data =  GetAgingTicketDataData(CompanyId) });            
+            return Json(new { Data = FinalList, DateList = DateRangeList });
+        }
+        public ActionResult SyncServiceModule(string id)
+        {
+            //Sync.SyncService();            
+            //Sync.SyncExpense(ApiCredentials cred,false);
+            //Sync.SyncTime(ApiCredentials cred,false);
+            //Sync.SyncSchedule(ApiCredentials cred,false);
+            //Sync.SyncPortalService(ApiCredentials cred,false);
+            return Json(new { date = DateTime.Now.AddMinutes(-10).ToString("MMM dd yyyy h:mm:ss") });
+        }
+    }
+}
